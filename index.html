@@ -674,6 +674,51 @@
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--border-hover); border-radius: 3px; }
 
+  /* ── CARD ACTIONS ── */
+  .card-actions {
+    display: flex;
+    gap: 0.4rem;
+    padding: 0 1.25rem 1rem;
+  }
+
+  .btn-edit, .btn-delete {
+    flex: 1;
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    padding: 6px 0;
+    font-family: 'Syne', sans-serif;
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+  }
+
+  .btn-edit {
+    background: var(--surface2);
+    color: var(--text-muted);
+  }
+
+  .btn-edit:hover {
+    background: var(--accent)18;
+    border-color: var(--accent)44;
+    color: var(--accent);
+  }
+
+  .btn-delete {
+    background: var(--surface2);
+    color: var(--text-muted);
+  }
+
+  .btn-delete:hover {
+    background: #ef444418;
+    border-color: #ef444444;
+    color: var(--red);
+  }
+
   /* ── HIDDEN ── */
   .hidden { display: none !important; }
 </style>
@@ -811,10 +856,11 @@
   </div>
 </div>
 
-<!-- MODAL DE ADICIONAR -->
+<!-- MODAL DE ADICIONAR / EDITAR -->
 <div class="add-modal-bg" id="add-modal-bg" onclick="closeAddModal(event)">
   <div class="add-modal">
-    <h2>+ Nova seção</h2>
+    <h2 id="add-modal-title">+ Nova seção</h2>
+    <input type="hidden" id="inp-edit-id" value="">
 
     <div class="form-row">
       <div class="form-group">
@@ -860,7 +906,7 @@
 
     <div class="form-actions">
       <button class="btn-cancel" onclick="closeAddModal()">Cancelar</button>
-      <button class="btn-save" onclick="saveSection()">Salvar seção</button>
+      <button class="btn-save" onclick="saveSection()" id="btn-save-label">Salvar seção</button>
     </div>
   </div>
 </div>
@@ -951,12 +997,45 @@ function render() {
       <div class="card-body">
         <div class="card-top">
           <div class="card-name">${s.name}</div>
-          <span class="type-badge badge-${s.type}">${s.type.toUpperCase()}</span>
+          <span class="type-badge badge-${s.type}">${s.type === 'pagina' ? 'PÁGINA' : s.type.toUpperCase()}</span>
         </div>
         <div class="card-category">${capitalize(s.category)}</div>
       </div>
+      <div class="card-actions">
+        <button class="btn-edit" data-id="${s.id}">
+          <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+          </svg>
+          Editar
+        </button>
+        <button class="btn-delete" data-id="${s.id}">
+          <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+            <path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/>
+          </svg>
+          Deletar
+        </button>
+      </div>
     `;
-    card.onclick = () => openModal(s);
+
+    // click no card abre modal (exceto nos botões de ação)
+    card.onclick = (e) => {
+      if (e.target.closest('.btn-edit') || e.target.closest('.btn-delete')) return;
+      openModal(s);
+    };
+
+    // botão editar
+    card.querySelector('.btn-edit').onclick = (e) => {
+      e.stopPropagation();
+      openEditModal(s);
+    };
+
+    // botão deletar
+    card.querySelector('.btn-delete').onclick = (e) => {
+      e.stopPropagation();
+      deleteSection(s.id, s.name);
+    };
     grid.appendChild(card);
   });
 
@@ -1056,8 +1135,29 @@ function copyCode() {
   });
 }
 
-// ── MODAL DE ADICIONAR ────────────────────────────────────────────────
+// ── MODAL DE ADICIONAR / EDITAR ────────────────────────────────────────
 function openAddModal() {
+  document.getElementById('add-modal-title').textContent = '+ Nova seção';
+  document.getElementById('btn-save-label').textContent = 'Salvar seção';
+  document.getElementById('inp-edit-id').value = '';
+  document.getElementById('inp-name').value = '';
+  document.getElementById('inp-category').value = 'hero';
+  document.getElementById('inp-type').value = 'html';
+  document.getElementById('inp-preview').value = '';
+  document.getElementById('inp-code').value = '';
+  document.getElementById('add-modal-bg').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function openEditModal(s) {
+  document.getElementById('add-modal-title').textContent = '✏️ Editar seção';
+  document.getElementById('btn-save-label').textContent = 'Salvar alterações';
+  document.getElementById('inp-edit-id').value = s.id;
+  document.getElementById('inp-name').value = s.name;
+  document.getElementById('inp-category').value = s.category;
+  document.getElementById('inp-type').value = s.type;
+  document.getElementById('inp-preview').value = s.preview || '';
+  document.getElementById('inp-code').value = s.code || '';
   document.getElementById('add-modal-bg').classList.add('open');
   document.body.style.overflow = 'hidden';
 }
@@ -1074,19 +1174,31 @@ function saveSection() {
   const type     = document.getElementById('inp-type').value;
   const preview  = document.getElementById('inp-preview').value.trim();
   const code     = document.getElementById('inp-code').value.trim();
+  const editId   = document.getElementById('inp-edit-id').value;
 
   if (!name) { alert('Dê um nome para a seção.'); return; }
   if (!code)  { alert('Cole o código da seção.'); return; }
 
-  sections.unshift({ id: Date.now(), name, category, type, preview, code });
+  if (editId) {
+    // EDITAR existente
+    const idx = sections.findIndex(s => String(s.id) === String(editId));
+    if (idx !== -1) {
+      sections[idx] = { ...sections[idx], name, category, type, preview, code };
+    }
+  } else {
+    // NOVO
+    sections.unshift({ id: Date.now(), name, category, type, preview, code });
+  }
+
   localStorage.setItem('immerse-sections', JSON.stringify(sections));
-
-  // Limpar form
-  document.getElementById('inp-name').value = '';
-  document.getElementById('inp-preview').value = '';
-  document.getElementById('inp-code').value = '';
-
   closeAddModal();
+  render();
+}
+
+function deleteSection(id, nome) {
+  if (!confirm(`Deletar "${nome}"?\n\nEssa ação não pode ser desfeita.`)) return;
+  sections = sections.filter(s => s.id !== id);
+  localStorage.setItem('immerse-sections', JSON.stringify(sections));
   render();
 }
 
